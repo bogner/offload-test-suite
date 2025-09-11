@@ -1,0 +1,70 @@
+#--- source.hlsl
+// Copy arrays between buffers and groupshared variables
+
+StructuredBuffer<uint4[100]> In : register(t1);
+RWStructuredBuffer<uint4[100]> Out : register(u0);
+groupshared uint4 SMem1[100];
+groupshared uint4 SMem2[100];
+
+[numthreads(3, 1, 1)]
+void main(uint GroupIndex : SV_GroupIndex) {
+  if (GroupIndex == 0)
+    SMem1 = In[0];
+  GroupMemoryBarrierWithGroupSync();
+  if (GroupIndex == 1)
+    SMem2 = SMem1;
+  GroupMemoryBarrierWithGroupSync();
+  if (GroupIndex == 2)
+    Out[0] = SMem2;
+}
+//--- pipeline.yaml
+---
+Shaders:
+  - Stage: Compute
+    Entry: main
+Buffers:
+  - Name: In
+    Format: UInt32
+    Channels: 4
+    FillSize: 400
+    FillValue: 42
+  - Name: Out
+    Format: UInt32
+    Channels: 4
+    FillSize: 400
+    FillValue: 0
+  - Name: ExpectedOut
+    Format: UInt32
+    Channels: 4
+    FillSize: 400
+    FillValue: 42
+Results:
+  - Result: Test0
+    Rule: BufferExact
+    Actual: Out
+    Expected: ExpectedOut
+DescriptorSets:
+  - Resources:
+    - Name: In
+      Kind: StructuredBuffer
+      DirectXBinding:
+        Register: 1
+        Space: 0
+      VulkanBinding:
+        Binding: 1
+    - Name: Out
+      Kind: RWStructuredBuffer
+      DirectXBinding:
+        Register: 0
+        Space: 0
+      VulkanBinding:
+        Binding: 0
+...
+#--- end
+
+# TODO: Bug?
+# XFAIL: Clang && Vulkan
+
+# RUN: split-file %s %t
+# RUN: %dxc_target -T cs_6_0 -Fo %t.o %t/source.hlsl
+# RUN: %offloader %t/pipeline.yaml %t.o
