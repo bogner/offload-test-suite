@@ -1,0 +1,83 @@
+#--- source.hlsl
+
+Buffer<uint4> In : register(t0);
+RWBuffer<uint4> Out : register(u1);
+
+[numthreads(4,1,1)]
+void main(uint GI : SV_GroupIndex) {
+  Out[(GI * 4)].x = In[0][GI];
+  Out[(GI * 4) + 1].x = In[1][GI];
+  Out[(GI * 4) + 2].x = In[GI][1];
+  Out[(GI * 4) + 3].x = In[GI][GI];
+}
+//--- pipeline.yaml
+---
+Shaders:
+  - Stage: Compute
+    Entry: main
+Buffers:
+  - Name: In
+    Format: UInt32
+    Channels: 4
+    Data: [
+      0, 1, 2, 3,
+      10, 11, 12, 13,
+      20, 21, 22, 23,
+      30, 31, 32, 33,
+    ]
+  - Name: Out
+    Format: UInt32
+    Channels: 4
+    FillSize: 256
+    FillValue: 99
+  - Name: ExpectedOut
+    Format: UInt32
+    Channels: 1
+    Data: [
+      0,  99, 99, 99,
+      10, 99, 99, 99,
+      1,  99, 99, 99,
+      0,  99, 99, 99,
+      1,  99, 99, 99,
+      11, 99, 99, 99,
+      11, 99, 99, 99,
+      11, 99, 99, 99,
+      2,  99, 99, 99,
+      12, 99, 99, 99,
+      21, 99, 99, 99,
+      22, 99, 99, 99,
+      3,  99, 99, 99,
+      13, 99, 99, 99,
+      31, 99, 99, 99,
+      33, 99, 99, 99,
+    ]
+Results:
+  - Result: Check
+    Rule: BufferExact
+    Actual: Out
+    Expected: ExpectedOut
+DescriptorSets:
+  - Resources:
+    - Name: In
+      Kind: Buffer
+      DirectXBinding:
+        Register: 0
+        Space: 0
+      VulkanBinding:
+        Binding: 0
+    - Name: Out
+      Kind: RWBuffer
+      DirectXBinding:
+        Register: 1
+        Space: 0
+      VulkanBinding:
+        Binding: 1
+...
+#--- end
+
+# TODO: Bug?
+# XFAIL: Clang && Vulkan
+
+# RUN: split-file %s %t
+# RUN: %dxc_target -T cs_6_0 -Fo %t.o %t/source.hlsl
+# RUN: %offloader %t/pipeline.yaml %t.o
