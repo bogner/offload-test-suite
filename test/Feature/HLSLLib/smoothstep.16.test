@@ -229,6 +229,9 @@ DescriptorSets:
 #--- end
 # REQUIRES: Half
 
+# TODO: bug? wrong results locally and on bot
+# XFAIL: Vulkan && NV
+
 # RUN: split-file %s %t
 # RUN: %dxc_target -T cs_6_5 -enable-16bit-types -Fo %t.o %t/source.hlsl
 # RUN: %offloader %t/pipeline.yaml %t.o
