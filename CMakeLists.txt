@@ -154,9 +154,26 @@ configure_file(
 
 set(DIRECTX_HEADERS_PATH ${CMAKE_CURRENT_SOURCE_DIR}/third-party/DirectX-Headers)
 
+# Add a subdirectory but disable compiler warnings-as-error. This is necessary
+# to have unmodified libpng and zlib and still use LLVM_ENABLE_WERROR.
+function(offloadtest_subdir_noerror SUBDIR)
+  # We use the function scope and set CMAKE_*_FLAGS directly here rather than
+  # using something more modern like target_compile_options. This is awkward,
+  # but necessary in cases where the third party library uses `CMAKE_C_FLAGS`
+  # in a cmake script directly.
+  if (LLVM_COMPILER_IS_GCC_COMPATIBLE)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error")
+    set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -Wno-error")
+  elseif (MSVC)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /WX-")
+    set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} /WX-")
+  endif()
+  add_subdirectory(${SUBDIR})
+endfunction()
+
 if (WIN32)
   message(STATUS "Including vendored zlib")
-  add_subdirectory(third-party/zlib)
+  offloadtest_subdir_noerror(third-party/zlib)
   # These are some extra fun hacks becauze ZLIB's CMake is fragile
   if (NOT TARGET ZLIB::ZLIB)
     add_library(ZLIB::ZLIB ALIAS zlibstatic)
@@ -171,7 +188,7 @@ if (WIN32)
   # Skip exports for libpng because they don't work with building my own zlib.
   set(SKIP_INSTALL_EXPORT On)
 endif ()
-add_subdirectory(third-party/libpng)
+offloadtest_subdir_noerror(third-party/libpng)
 set_property(GLOBAL APPEND PROPERTY LLVM_EXPORTS_BUILDTREE_ONLY png_static)
 
 include(AgilitySDK)
